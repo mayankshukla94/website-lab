@@ -1,4 +1,3 @@
-
 import { Mastra } from '@mastra/core/mastra';
 import { PinoLogger } from '@mastra/loggers';
 import { LibSQLStore } from '@mastra/libsql';
@@ -7,11 +6,36 @@ import { MastraCompositeStore } from '@mastra/core/storage';
 import { Observability, MastraStorageExporter, MastraPlatformExporter, SensitiveDataFilter } from '@mastra/observability';
 import { weatherWorkflow } from './workflows/weather-workflow';
 import { weatherAgent } from './agents/weather-agent';
+import { websitePreviewAgent } from './agents/website-preview-agent';
+import { registerApiRoute } from '@mastra/core/server';
 
 
 export const mastra = new Mastra({
   workflows: { weatherWorkflow },
-  agents: { weatherAgent },
+  agents: { weatherAgent, websitePreviewAgent },
+  server: {
+    apiRoutes: [
+      registerApiRoute('/website-preview', {
+        method: 'POST',
+        handler: async (c) => {
+          const body = await c.req.json();
+          const response = await fetch(body.url, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 Website Importer",
+            },
+          });
+
+          const html = await response.text();
+
+          return c.json({
+            url: body.url,
+            statusCode: response.status,
+            html,
+          });
+        },
+      }),
+    ],
+  },
   storage: new MastraCompositeStore({
     id: 'composite-storage',
     default: new LibSQLStore({

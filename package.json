@@ -16,9 +16,13 @@
     "@mastra/loggers": "^1.2.0",
     "@mastra/memory": "^1.23.1",
     "@mastra/observability": "^1.16.2",
+    "@tailwindcss/vite": "^4.3.3",
+    "ai-sdk-ollama": "^4.1.0",
+    "cheerio": "^1.1.0",
     "mastra": "^1.20.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "tailwindcss": "^4.3.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
