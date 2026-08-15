@@ -50,12 +50,16 @@ export const websiteFetchTool = createTool({
                     .trim();
 
                 const className = $(element).attr('class') ?? '';
+                const truncatedText =
+                    text.length <= 300
+                        ? text
+                        : `${text.slice(0, 300).replace(/\s+\S*$/, '').trimEnd()}...`;
 
                 return {
                     index,
                     className,
                     heading,
-                    text: text.slice(0, 300),
+                    text: truncatedText,
                 };
             })
             .get();
