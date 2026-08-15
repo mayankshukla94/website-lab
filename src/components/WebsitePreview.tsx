@@ -8,24 +8,26 @@ import { faArrowUp } from '@fortawesome/free-solid-svg-icons'
 type ChatMessage = {
     role: 'user' | 'assistant';
     content: string;
+    format?: 'text' | 'json';
 };
 
 export function WebsitePreview() {
     const [url, setUrl] = useState('');
     const [html, setHtml] = useState('');
     const [message, setMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
 
     const resourceId = "website-preview-user";
     const threadId = "website-preview-thread";
 
-    async function handleShowPreview() {
+    async function handleShowPreview(previewUrl: string) {
         const response = await fetch('http://localhost:4111/website-preview', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ url }),
+            body: JSON.stringify({ url: previewUrl }),
         });
 
         const data = await response.json();
@@ -36,81 +38,121 @@ export function WebsitePreview() {
     async function handleSendMessage() {
         const userMessage = message.trim();
 
-        if (!userMessage) return;
+        if (!userMessage || isSending) return;
 
-        const conversation = [
-            ...messages,
+        setIsSending(true);
+
+        setMessages((prev) => [
+            ...prev,
             {
-                role: 'user' as const,
+                role: 'user',
                 content: userMessage,
             },
-        ];
-
-        setMessages([
-            ...conversation,
             {
                 role: 'assistant',
                 content: '',
+                format: 'text',
             },
         ]);
 
         setMessage('');
 
-        const response = await fetch(`http://localhost:4111/api/agents/website-preview-agent/stream`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                messages: conversation,
-                resourceId,
-                threadId,
-            }),
-        });
+        try {
+            const response = await fetch(`http://localhost:4111/api/agents/website-preview-agent/stream`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    messages: [{
+                        role: 'user',
+                        content: userMessage,
+                    }],
+                    memory: {
+                        resource: resourceId,
+                        thread: threadId,
+                    },
+                }),
+            });
 
-        const reader = response.body?.getReader();
+            const reader = response.body?.getReader();
 
-        if (!reader) return;
+            if (!reader) return;
 
-        const decoder = new TextDecoder();
+            const decoder = new TextDecoder();
 
-        let buffer = '';
-        let assistantText = '';
+            let buffer = '';
+            let assistantText = '';
 
-        while (true) {
-            const { done, value } = await reader.read();
+            const updateAssistantMessage = (content: string, format: ChatMessage['format'] = 'text') => {
+                setMessages((prev) =>
+                    prev.map((message, index) => {
+                        if (message.role === 'assistant' && index === prev.length - 1) {
+                            return {
+                                ...message,
+                                content,
+                                format,
+                            };
+                        }
 
-            if (done) break;
+                        return message;
+                    })
+                );
+            };
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() ?? '';
+            const processStreamLine = (line: string) => {
+                if (!line.startsWith('data: ')) return;
 
-            for (const line of lines) {
-                if (!line.startsWith('data: ')) continue;
+                const rawData = line.slice(6).trim();
 
-                const rawData = line.slice(6);
-
-                if (rawData === '[DONE]') continue;
+                if (!rawData || rawData === '[DONE]') return;
 
                 const event = JSON.parse(rawData);
+                console.log(event);
 
                 if (event.type === 'text-delta') {
                     assistantText += event.payload.text;
+                    updateAssistantMessage(assistantText);
+                }
 
-                    setMessages((prev) => (
-                        prev.map((message, index) => {
-                            if (message.role === 'assistant' && index === prev.length - 1) {
-                                return {
-                                    ...message,
-                                    content: assistantText,
-                                };
-                            }
-                            return message;
-                        })
-                    ))
+                if (event.type === 'tool-result' && event.payload?.toolName === 'websiteFetchTool') {
+                    const previewUrl = event.payload.result?.url;
+
+                    if (previewUrl) {
+                        setUrl(previewUrl);
+                        handleShowPreview(previewUrl);
+                    }
+                }
+            };
+
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';
+
+                for (const line of lines) {
+                    processStreamLine(line);
                 }
             }
+
+            buffer += decoder.decode();
+
+            for (const line of buffer.split('\n')) {
+                processStreamLine(line);
+            }
+
+            try {
+                const parsed = JSON.parse(assistantText);
+                updateAssistantMessage(JSON.stringify(parsed, null, 2), 'json');
+            } catch {
+                updateAssistantMessage(assistantText, 'text');
+            }
+        } finally {
+            setIsSending(false);
         }
     }
 
@@ -127,7 +169,7 @@ export function WebsitePreview() {
                         className="flex-1 border-blue-500 focus-visible:ring-blue-500"
                     />
 
-                    <Button onClick={handleShowPreview} className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-blue-500">
+                    <Button onClick={() => handleShowPreview(url)} className="bg-blue-600 hover:bg-blue-700 focus-visible:ring-blue-500">
                         Preview Page
                     </Button>
                 </div>
@@ -178,23 +220,40 @@ export function WebsitePreview() {
                                     ? 'mb-4 rounded-lg bg-slate-100 p-4 text-slate-900'
                                     : 'mb-4 rounded-lg bg-slate-200 p-4 text-slate-900'
                             }
-                        >{message.content}</div>
+                        >
+                            {message.format === 'json' ? (
+                                <pre className="whitespace-pre-wrap break-words text-sm">
+                                    {message.content}
+                                </pre>
+                            ) : (
+                                <div className="whitespace-pre-wrap">
+                                    {message.content}
+                                </div>
+                            )}
+                        </div>
                         )
                     })
                     }
                 </div>
 
-                <div className="relative border-t border-slate-300 p-4">
-                    <Textarea
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Enter your website URL..."
-                        className="min-h-10 border-blue-500 focus-visible:ring-blue-500 pr-11"
-                    />
-                    <Button size="icon"
-                        onClick={handleSendMessage} className="absolute right-5 top-1/2 -translate-y-1/2 rounded-full bg-blue-600 hover:bg-blue-700">
-                        <Icon icon={faArrowUp} />
-                    </Button>
+                <div className="border-t border-slate-300 p-4">
+                    <div className="relative">
+                        <Textarea
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSendMessage();
+                                }
+                            }}
+                            placeholder="Enter your website URL..."
+                            className="min-h-10 border-blue-500 focus-visible:ring-blue-500 pr-11"
+                        />
+                        <Button size="icon"
+                            onClick={handleSendMessage} disabled={isSending || !message.trim()} className="absolute right-1 top-1 rounded-full bg-blue-600 hover:bg-blue-700">
+                            <Icon icon={faArrowUp} />
+                        </Button></div>
                 </div>
             </div>
         </div>
