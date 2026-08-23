@@ -2,6 +2,7 @@ import type {
     AIUsage,
     AssistantMessageUpdate,
     ChatMessageFormat,
+    WorkflowRequestContext,
     WorkflowResumeData,
 } from './types';
 import { EMPTY_AI_USAGE } from './types';
@@ -297,6 +298,9 @@ export async function consumeAgentStream(
 export async function consumeWorkflowStream(
     reader: ReadableStreamDefaultReader<Uint8Array>,
     handlers: {
+        onContextResolved: (
+            context: WorkflowRequestContext
+        ) => void;
         onSuspended: (payload: {
             message: string;
             resumeData: WorkflowResumeData;
@@ -347,6 +351,21 @@ export async function consumeWorkflowStream(
 
         if (
             event.type === 'workflow-step-result' &&
+            event.payload?.stepName === 'understand-prompt' &&
+            event.payload.status === 'success'
+        ) {
+            const output = event.payload.output as
+                | WorkflowRequestContext
+                | undefined;
+
+            handlers.onContextResolved({
+                url: output?.url ?? null,
+                format: output?.format ?? null,
+            });
+        }
+
+        if (
+            event.type === 'workflow-step-result' &&
             event.payload?.stepName === 'fetch-page' &&
             event.payload.status === 'success'
         ) {
@@ -364,8 +383,8 @@ export async function consumeWorkflowStream(
         ) {
             const output =
                 event.payload.output as
-                    | WorkflowTextResult
-                    | WorkflowJsonResult;
+                | WorkflowTextResult
+                | WorkflowJsonResult;
 
             handlers.onCompleted({
                 update: formatWorkflowMessage(output),

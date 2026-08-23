@@ -14,6 +14,7 @@ import type {
     Approach,
     AssistantMessageUpdate,
     ChatMessage,
+    WorkflowRequestContext,
     WorkflowResumeData,
 } from './types';
 import {
@@ -44,6 +45,11 @@ export function useWebsitePreviewChat() {
     const [workflowRunId, setWorkflowRunId] = useState<string | null>(null);
     const [workflowResumeData, setWorkflowResumeData] =
         useState<WorkflowResumeData | null>(null);
+    const [workflowRequestContext, setWorkflowRequestContext] =
+        useState<WorkflowRequestContext>({
+            url: null,
+            format: null,
+        });
     const [totalUsage, setTotalUsage] =
         useState<AIUsage>(EMPTY_AI_USAGE);
 
@@ -94,6 +100,16 @@ export function useWebsitePreviewChat() {
         setTotalUsage((currentUsage) =>
             addAIUsage(currentUsage, usage)
         );
+    }
+
+    function updateWorkflowRequestContext(
+        context: WorkflowRequestContext
+    ) {
+        setWorkflowRequestContext((currentContext) => ({
+            url: context.url ?? currentContext.url,
+            format:
+                context.format ?? currentContext.format,
+        }));
     }
 
     async function showPreview(previewUrl: string) {
@@ -156,10 +172,14 @@ export function useWebsitePreviewChat() {
         const reader = await streamWorkflowResponse({
             runId,
             message: userMessage,
+            requestContext: workflowRequestContext,
             resumeData: workflowResumeData,
         });
 
         await consumeWorkflowStream(reader, {
+            onContextResolved: (context) => {
+                updateWorkflowRequestContext(context);
+            },
             onSuspended: ({ message: suspendedMessage, resumeData }) => {
                 const usageDelta = subtractAIUsage(
                     resumeData.usage,
@@ -167,6 +187,10 @@ export function useWebsitePreviewChat() {
                 );
 
                 addToTotalUsage(usageDelta);
+                updateWorkflowRequestContext({
+                    url: resumeData.url,
+                    format: resumeData.format,
+                });
 
                 updateLastAssistantMessage({
                     content: suspendedMessage,

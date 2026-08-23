@@ -1,4 +1,7 @@
-import type { WorkflowResumeData } from './types';
+import type {
+    WorkflowRequestContext,
+    WorkflowResumeData,
+} from './types';
 
 const API_BASE_URL = 'http://localhost:4111';
 
@@ -104,10 +107,12 @@ export async function createWorkflowRun() {
 export function streamWorkflowResponse({
     runId,
     message,
+    requestContext,
     resumeData,
 }: {
     runId: string;
     message: string;
+    requestContext: WorkflowRequestContext;
     resumeData: WorkflowResumeData | null;
 }) {
     const isResume = resumeData !== null;
@@ -118,17 +123,18 @@ export function streamWorkflowResponse({
 
     const body = isResume
         ? {
-              step: 'understand-prompt',
-              resumeData: {
-                  ...resumeData,
-                  prompt: message,
-              },
-          }
+            step: 'understand-prompt',
+            resumeData: {
+                ...resumeData,
+                prompt: message,
+            },
+        }
         : {
-              inputData: {
-                  prompt: message,
-              },
-          };
+            inputData: {
+                prompt: message,
+                context: requestContext,
+            },
+        };
 
     return createStreamReader(
         endpoint,

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import * as cheerio from 'cheerio';
 
 export const websiteFetchInputSchema = z.object({
-    url: z.url(),    
+    url: z.url(),
 })
 
 export const websiteFetchOutputSchema = z.object({

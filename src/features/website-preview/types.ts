@@ -14,9 +14,12 @@ export type ChatMessage = {
 
 export type Approach = 'agent' | 'workflow';
 
-export type WorkflowResumeData = {
+export type WorkflowRequestContext = {
     url: string | null;
     format: ChatMessageFormat | null;
+};
+
+export type WorkflowResumeData = WorkflowRequestContext & {
     usage: AIUsage;
 };
 

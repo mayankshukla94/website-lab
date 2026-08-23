@@ -28,6 +28,13 @@ const extractedRequestSchema = z.object({
 
 const understandRequestInputSchema = z.object({
     prompt: z.string(),
+    context: z
+        .object({
+            url: z.url().nullable().optional(),
+            format:
+                requestedFormatSchema.nullable().optional(),
+        })
+        .optional(),
 });
 
 const understandRequestResumeSchema = z.object({
@@ -146,13 +153,23 @@ const understandRequestStep = createStep({
         let format: 'text' | 'json' | null = resumeData?.format ?? null;
         let usage = resumeData?.usage ?? emptyUsage;
         const prompt = resumeData?.prompt ?? inputData.prompt;
+        const context = inputData.context;
 
         if (prompt && (!url || !format)) {
             const extractedRequest = await extractRequestDetails(prompt);
 
             usage = addUsage(usage, extractedRequest.usage);
-            url ??= extractedRequest.output.url;
-            format ??= extractedRequest.output.format;
+            url ??=
+                extractedRequest.output.url ??
+                context?.url ??
+                null;
+            format ??=
+                extractedRequest.output.format ??
+                context?.format ??
+                null;
+        } else {
+            url ??= context?.url ?? null;
+            format ??= context?.format ?? null;
         }
 
         if (!url) {
