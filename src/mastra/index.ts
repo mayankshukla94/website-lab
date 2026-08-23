@@ -5,13 +5,14 @@ import { DuckDBStore } from "@mastra/duckdb";
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { Observability, MastraStorageExporter, MastraPlatformExporter, SensitiveDataFilter } from '@mastra/observability';
 import { weatherWorkflow } from './workflows/weather-workflow';
+import { websiteAnalysisWorkflow } from './workflows/website-analysis-workflow';
 import { weatherAgent } from './agents/weather-agent';
 import { websitePreviewAgent } from './agents/website-preview-agent';
 import { registerApiRoute } from '@mastra/core/server';
 
 
 export const mastra = new Mastra({
-  workflows: { weatherWorkflow },
+  workflows: { weatherWorkflow, websiteAnalysisWorkflow },
   agents: { weatherAgent, websitePreviewAgent },
   server: {
     apiRoutes: [

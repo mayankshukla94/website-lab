@@ -24,6 +24,7 @@
     "@mastra/memory": "^1.23.1",
     "@mastra/observability": "^1.16.2",
     "@tailwindcss/vite": "^4.3.3",
+    "ai": "^7.0.66",
     "ai-sdk-ollama": "^4.1.0",
     "cheerio": "^1.1.0",
     "class-variance-authority": "^0.7.1",

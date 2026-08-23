@@ -2,6 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { websiteFetchTool } from '../tools/website-fetch-tool';
 import { websitePageAnalyzerSkill } from '../skills/website-page-analyzer-skill';
 import { Memory } from '@mastra/memory';
+import { google } from '@ai-sdk/google';
 
 export const websitePreviewAgent = new Agent({
     id: 'website-preview-agent',
@@ -51,7 +52,7 @@ export const websitePreviewAgent = new Agent({
         Do not analyze content that was not returned by the tool.
         Do not make unsupported claims about the page.
     `,
-    model: 'google/gemini-3.5-flash-lite',
+    model: google('gemini-3.5-flash-lite'),
     tools: { websiteFetchTool },
     skills: [websitePageAnalyzerSkill],
     memory: new Memory(),
