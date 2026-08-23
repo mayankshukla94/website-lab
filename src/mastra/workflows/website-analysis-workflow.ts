@@ -6,8 +6,20 @@ import {
     fetchWebsitePage,
     websiteFetchOutputSchema,
 } from '../lib/website-fetch';
+import {
+    buildSummarizePageSystemPrompt,
+    EXTRACT_REQUEST_DETAILS_SYSTEM_PROMPT,
+    FORMAT_SELECTION_QUESTION,
+    MISSING_URL_MESSAGE,
+} from '../lib/website-analysis-prompts';
 
 const requestedFormatSchema = z.enum(['text', 'json']);
+
+const aiUsageSchema = z.object({
+    inputTokens: z.number(),
+    outputTokens: z.number(),
+    totalTokens: z.number(),
+});
 
 const extractedRequestSchema = z.object({
     url: z.url().nullable(),
@@ -22,17 +34,20 @@ const understandRequestResumeSchema = z.object({
     prompt: z.string().optional(),
     url: z.url().nullable().optional(),
     format: requestedFormatSchema.nullable().optional(),
+    usage: aiUsageSchema.optional(),
 });
 
 const understandRequestSuspendSchema = z.object({
     message: z.string(),
     url: z.url().nullable().optional(),
     format: requestedFormatSchema.nullable().optional(),
+    usage: aiUsageSchema,
 });
 
 const understandRequestOutputSchema = z.object({
     url: z.url(),
     format: requestedFormatSchema,
+    usage: aiUsageSchema,
 });
 
 const pageAnalysisSchema = z.object({
@@ -48,43 +63,76 @@ const pageAnalysisSchema = z.object({
 
 const fetchPageOutputSchema = websiteFetchOutputSchema.extend({
     format: requestedFormatSchema,
+    usage: aiUsageSchema,
 });
 
 const workflowOutputSchema = z.union([
     z.object({
         format: z.literal('text'),
         text: z.string(),
+        usage: aiUsageSchema,
     }),
     z.object({
         format: z.literal('json'),
         data: pageAnalysisSchema,
+        usage: aiUsageSchema,
     }),
 ]);
+
+const emptyUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+};
+
+function normalizeUsage(usage: {
+    inputTokens?: number;
+    outputTokens?: number;
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+}) {
+    const inputTokens =
+        usage.inputTokens ?? usage.promptTokens ?? 0;
+    const outputTokens =
+        usage.outputTokens ?? usage.completionTokens ?? 0;
+
+    return {
+        inputTokens,
+        outputTokens,
+        totalTokens:
+            usage.totalTokens ??
+            inputTokens + outputTokens,
+    };
+}
+
+function addUsage(
+    current: typeof emptyUsage,
+    next: typeof emptyUsage
+) {
+    return {
+        inputTokens: current.inputTokens + next.inputTokens,
+        outputTokens: current.outputTokens + next.outputTokens,
+        totalTokens: current.totalTokens + next.totalTokens,
+    };
+}
 
 async function extractRequestDetails(prompt: string) {
     const result = await generateText({
         model: google('gemini-3.5-flash-lite'),
-        system: `
-            Understand the user's website analysis request.
-
-            Extract:
-            - the website URL
-            - the requested output format, if specified
-
-            Rules:
-            - If the URL does not include a protocol, prepend https://.
-            - If the user asks for text, return format as "text".
-            - If the user asks for JSON or structured JSON, return format as "json".
-            - If no URL is provided, return url as null.
-            - If no output format is provided, return format as null.
-        `,
+        system: EXTRACT_REQUEST_DETAILS_SYSTEM_PROMPT,
         prompt,
         output: Output.object({
             schema: extractedRequestSchema,
         }),
     });
 
-    return result.output;
+    console.log('EXTRACT REQUEST USAGE:', result.usage);
+
+    return {
+        output: result.output,
+        usage: normalizeUsage(result.usage),
+    };
 }
 
 const understandRequestStep = createStep({
@@ -96,33 +144,37 @@ const understandRequestStep = createStep({
     execute: async ({ inputData, suspend, resumeData }) => {
         let url: string | null = resumeData?.url ?? null;
         let format: 'text' | 'json' | null = resumeData?.format ?? null;
+        let usage = resumeData?.usage ?? emptyUsage;
         const prompt = resumeData?.prompt ?? inputData.prompt;
 
         if (prompt && (!url || !format)) {
             const extractedRequest = await extractRequestDetails(prompt);
 
-            url ??= extractedRequest.url;
-            format ??= extractedRequest.format;
+            usage = addUsage(usage, extractedRequest.usage);
+            url ??= extractedRequest.output.url;
+            format ??= extractedRequest.output.format;
         }
 
         if (!url) {
             return await suspend({
-                message: 'Please provide a website URL to analyze.',
+                message: MISSING_URL_MESSAGE,
                 format,
+                usage,
             });
         }
 
         if (!format) {
             return await suspend({
-                message:
-                    'Would you like the page analysis as text or structured JSON?',
+                message: FORMAT_SELECTION_QUESTION,
                 url,
+                usage,
             });
         }
 
         return {
             url,
             format,
+            usage,
         };
     },
 });
@@ -137,6 +189,7 @@ const fetchPageStep = createStep({
         return {
             ...page,
             format: inputData.format,
+            usage: inputData.usage,
         };
     },
 });
@@ -159,73 +212,44 @@ export const summarizePageStep = createStep({
         if (inputData.format === 'text') {
             const result = await generateText({
                 model: google('gemini-3.5-flash-lite'),
-                system: `
-                    You analyze extracted website page sections.
-
-                    Rules:
-                    - Ignore empty and utility sections.
-                    - Prefer explicit semantic class names over content-based inference.
-                    - If className contains "hero-section", classify it as "hero".
-                    - If className contains "shoutout", classify it as "shoutout".
-                    - When className is generic, infer the section type from heading and text.
-                    - Preserve the original section order.
-                    - Include only meaningful sections.
-                    - Return plain text only.
-                    - Do not use Markdown.
-                    - Do not use JSON.
-                    - Return only a concise summary of what the page is about.
-                    - Mention the business or page purpose, the main service or offer, and the main call to action.
-                    - Keep it to 2 to 4 sentences.
-                    - Do not list sections.
-                    - Do not mention type, heading, or description fields.
-                `,
+                system: buildSummarizePageSystemPrompt('text'),
                 prompt,
             });
+
+            console.log('SUMMARIZE PAGE TEXT USAGE:', result.usage);
+
+            const usage = addUsage(
+                inputData.usage,
+                normalizeUsage(result.usage)
+            );
 
             return {
                 format: 'text' as const,
                 text: result.text,
+                usage,
             };
         }
 
         const result = await generateText({
             model: google('gemini-3.5-flash-lite'),
-            system: `
-                You analyze extracted website page sections.
-
-                Rules:
-                - Ignore empty and utility sections.
-                - Prefer explicit semantic class names over content-based inference.
-                - If className contains "hero-section", classify it as "hero".
-                - If className contains "shoutout", classify it as "shoutout".
-                - When className is generic, infer the section type from heading and text.
-                - Preserve the original section order.
-                - Include only meaningful sections.
-                - Keep the page summary and descriptions concise.
-                - Return valid JSON only.
-                - Do not include Markdown.
-                - Do not include code fences.
-                - Use this exact shape:
-                    {
-                        "pageSummary": "string",
-                        "sections": [
-                            {
-                                "type": "string",
-                                "heading": "string",
-                                "description": "string"
-                            }
-                        ]
-                    }
-            `,
+            system: buildSummarizePageSystemPrompt('json'),
             prompt,
             output: Output.object({
                 schema: pageAnalysisSchema,
             }),
         });
 
+        console.log('SUMMARIZE PAGE JSON USAGE:', result.usage);
+
+        const usage = addUsage(
+            inputData.usage,
+            normalizeUsage(result.usage)
+        );
+
         return {
             format: 'json' as const,
             data: result.output,
+            usage,
         };
     },
 });
