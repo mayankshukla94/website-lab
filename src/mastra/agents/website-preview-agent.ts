@@ -12,5 +12,5 @@ export const websitePreviewAgent = new Agent({
     model: google('gemini-3.5-flash-lite'),
     tools: { websiteFetchTool },
     skills: [websitePageAnalyzerSkill],
-    //memory: new Memory(),
+    memory: new Memory(),
 })
