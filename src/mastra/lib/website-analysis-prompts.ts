@@ -1,10 +1,9 @@
 type OutputFormat = 'text' | 'json';
 
 export const FORMAT_SELECTION_QUESTION =
-    'Would you like the page analysis as text or structured JSON?';
+  'Would you like the page analysis as text or structured JSON?';
 
-export const MISSING_URL_MESSAGE =
-    'Please provide a website URL to analyze.';
+export const MISSING_URL_MESSAGE = 'Please provide a website URL to analyze.';
 
 export const JSON_OUTPUT_EXACT_SHAPE = `{
     "pageSummary": "string",
@@ -18,37 +17,37 @@ export const JSON_OUTPUT_EXACT_SHAPE = `{
 }`;
 
 const SECTION_ANALYSIS_RULES = [
-    'Ignore empty and utility sections.',
-    'Prefer explicit semantic class names over content-based inference.',
-    'If className contains "hero-section", classify it as "hero".',
-    'If className contains "shoutout", classify it as "shoutout".',
-    'When className is generic, infer the section type from heading and text.',
-    'Preserve the original section order.',
-    'Include only meaningful sections.',
+  'Ignore empty and utility sections.',
+  'Prefer explicit semantic class names over content-based inference.',
+  'If className contains "hero-section", classify it as "hero".',
+  'If className contains "shoutout", classify it as "shoutout".',
+  'When className is generic, infer the section type from heading and text.',
+  'Preserve the original section order.',
+  'Include only meaningful sections.',
 ];
 
 const TEXT_OUTPUT_RULES = [
-    'Return plain text only.',
-    'Do not use Markdown.',
-    'Do not use JSON.',
-    'Return only a concise summary of what the page is about.',
-    'Mention the business or page purpose, the main service or offer, and the main call to action.',
-    'Keep it to 2 to 4 sentences.',
-    'Do not list sections.',
-    'Do not mention type, heading, or description fields.',
+  'Return plain text only.',
+  'Do not use Markdown.',
+  'Do not use JSON.',
+  'Return only a concise summary of what the page is about.',
+  'Mention the business or page purpose, the main service or offer, and the main call to action.',
+  'Keep it to 2 to 4 sentences.',
+  'Do not list sections.',
+  'Do not mention type, heading, or description fields.',
 ];
 
 const JSON_OUTPUT_RULES = [
-    'Keep the page summary and descriptions concise.',
-    'Return valid JSON only.',
-    'Do not include Markdown.',
-    'Do not include code fences.',
-    `Use this exact shape:
+  'Keep the page summary and descriptions concise.',
+  'Return valid JSON only.',
+  'Do not include Markdown.',
+  'Do not include code fences.',
+  `Use this exact shape:
 ${JSON_OUTPUT_EXACT_SHAPE}`,
 ];
 
 function formatRules(rules: string[]) {
-    return rules.map((rule) => `- ${rule}`).join('\n');
+  return rules.map((rule) => `- ${rule}`).join('\n');
 }
 
 export const EXTRACT_REQUEST_DETAILS_SYSTEM_PROMPT = `
@@ -67,7 +66,7 @@ export const EXTRACT_REQUEST_DETAILS_SYSTEM_PROMPT = `
 `;
 
 export function buildWebsitePreviewAgentInstructions() {
-    return `
+  return `
         You are a website preview assistant.
 
         Your job is to orchestrate the interaction, not to re-implement
@@ -92,12 +91,9 @@ export function buildWebsitePreviewAgentInstructions() {
 }
 
 export function buildSummarizePageSystemPrompt(format: OutputFormat) {
-    const outputRules =
-        format === 'text'
-            ? TEXT_OUTPUT_RULES
-            : JSON_OUTPUT_RULES;
+  const outputRules = format === 'text' ? TEXT_OUTPUT_RULES : JSON_OUTPUT_RULES;
 
-    return `
+  return `
         You analyze extracted website page sections.
 
         Rules:

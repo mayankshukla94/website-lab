@@ -6,11 +6,11 @@ import { google } from '@ai-sdk/google';
 import { buildWebsitePreviewAgentInstructions } from '../lib/website-analysis-prompts';
 
 export const websitePreviewAgent = new Agent({
-    id: 'website-preview-agent',
-    name: 'Website Preview Agent',
-    instructions: buildWebsitePreviewAgentInstructions(),
-    model: google('gemini-3.5-flash-lite'),
-    tools: { websiteFetchTool },
-    skills: [websitePageAnalyzerSkill],
-    memory: new Memory(),
-})
+  id: 'website-preview-agent',
+  name: 'Website Preview Agent',
+  instructions: buildWebsitePreviewAgentInstructions(),
+  model: google('gemini-3.5-flash-lite'),
+  tools: { websiteFetchTool },
+  skills: [websitePageAnalyzerSkill],
+  memory: new Memory(),
+});
