@@ -1,11 +1,11 @@
 import { createSkill } from '@mastra/core/skills';
 
 export const websitePageAnalyzerSkill = createSkill({
-    name: 'website-page-analyzer',
-    description:
-        'Use when a fetched website page needs to be filtered, classified, and summarized from its extracted sections.',
+  name: 'website-page-analyzer',
+  description:
+    'Use when a fetched website page needs to be filtered, classified, and summarized from its extracted sections.',
 
-    instructions: `
+  instructions: `
         Analyze the candidate sections returned by the website fetch tool.
 
         Section filtering:

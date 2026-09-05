@@ -1,17 +1,22 @@
 import { Mastra } from '@mastra/core/mastra';
 import { PinoLogger } from '@mastra/loggers';
 import { LibSQLStore } from '@mastra/libsql';
-import { DuckDBStore } from "@mastra/duckdb";
+import { DuckDBStore } from '@mastra/duckdb';
 import { MastraCompositeStore } from '@mastra/core/storage';
-import { Observability, MastraStorageExporter, MastraPlatformExporter, SensitiveDataFilter } from '@mastra/observability';
+import {
+  Observability,
+  MastraStorageExporter,
+  MastraPlatformExporter,
+  SensitiveDataFilter,
+} from '@mastra/observability';
 import { weatherWorkflow } from './workflows/weather-workflow';
+import { websiteAnalysisWorkflow } from './workflows/website-analysis-workflow';
 import { weatherAgent } from './agents/weather-agent';
 import { websitePreviewAgent } from './agents/website-preview-agent';
 import { registerApiRoute } from '@mastra/core/server';
 
-
 export const mastra = new Mastra({
-  workflows: { weatherWorkflow },
+  workflows: { weatherWorkflow, websiteAnalysisWorkflow },
   agents: { weatherAgent, websitePreviewAgent },
   server: {
     apiRoutes: [
@@ -21,7 +26,7 @@ export const mastra = new Mastra({
           const body = await c.req.json();
           const response = await fetch(body.url, {
             headers: {
-              "User-Agent": "Mozilla/5.0 Website Importer",
+              'User-Agent': 'Mozilla/5.0 Website Importer',
             },
           });
 
@@ -39,15 +44,15 @@ export const mastra = new Mastra({
   storage: new MastraCompositeStore({
     id: 'composite-storage',
     default: new LibSQLStore({
-      id: "mastra-storage",
+      id: 'mastra-storage',
       // Uses a hosted database when deployed (mastra env db create --kind turso),
       // and a local file during development.
-      url: process.env.TURSO_DATABASE_URL ?? "file:./mastra.db",
+      url: process.env.TURSO_DATABASE_URL ?? 'file:./mastra.db',
       authToken: process.env.TURSO_AUTH_TOKEN,
     }),
     domains: {
       observability: await new DuckDBStore().getStore('observability'),
-    }
+    },
   }),
   logger: new PinoLogger({
     name: 'Mastra',

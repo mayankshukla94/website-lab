@@ -1,74 +1,20 @@
 import { createTool } from '@mastra/core/tools';
-import { z } from 'zod';
-import * as cheerio from 'cheerio';
+import {
+  fetchWebsitePage,
+  websiteFetchOutputSchema,
+  websiteFetchInputSchema,
+} from '../lib/website-fetch';
 
 export const websiteFetchTool = createTool({
-    id: 'website-fetch-tool',
-    description: 'Fetches the raw HTML content of a given website URL',
-    inputSchema: z.object({
-        url: z.url().describe('The URL of the website to fetch'),
-    }),
-    outputSchema: z.object({
-        url: z.url(),
-        statusCode: z.number(),
-        contentType: z.string(),
-        sections: z.array(
-            z.object({
-                index: z.number(),
-                className: z.string(),
-                heading: z.string(),
-                text: z.string(),
-            })
-        )
-    }),
+  id: 'website-fetch-tool',
 
-    execute: async (inputData) => {
-        const response = await fetch(inputData.url, {
-            headers: {
-                "User-Agent": "Mozilla/5.0 Website Importer",
-            },
-        });
+  description: 'Fetches a website page and extracts candidate page sections.',
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch the website. Status: ${response.status}`);
-        }
+  inputSchema: websiteFetchInputSchema,
 
-        const html = await response.text();
-        const $ = cheerio.load(html);
-        const sections = $('section')
-            .map((index, element) => {
-                const heading =
-                    $(element)
-                        .find('h1, h2, h3')
-                        .first()
-                        .text()
-                        .trim() || 'Untitled Section';
+  outputSchema: websiteFetchOutputSchema,
 
-                const text = $(element)
-                    .text()
-                    .replace(/\s+/g, ' ')
-                    .trim();
-
-                const className = $(element).attr('class') ?? '';
-                const truncatedText =
-                    text.length <= 300
-                        ? text
-                        : `${text.slice(0, 300).replace(/\s+\S*$/, '').trimEnd()}...`;
-
-                return {
-                    index,
-                    className,
-                    heading,
-                    text: truncatedText,
-                };
-            })
-            .get();
-
-        return {
-            url: inputData.url,
-            statusCode: response.status,
-            contentType: response.headers.get('content-type') || 'unknown',
-            sections,
-        };
-    }
-})
+  execute: async (inputData) => {
+    return fetchWebsitePage(inputData.url);
+  },
+});
