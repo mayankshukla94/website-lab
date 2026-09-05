@@ -24,7 +24,6 @@ import {
 } from './types';
 
 const resourceId = 'website-preview-user';
-const threadId = 'website-preview-thread';
 
 function getErrorMessage(
     error: unknown,
@@ -36,6 +35,9 @@ function getErrorMessage(
 }
 
 export function useWebsitePreviewChat() {
+    const [agentThreadId] = useState(
+        () => `website-preview-thread-${crypto.randomUUID()}`
+    );
     const [url, setUrl] = useState('');
     const [html, setHtml] = useState('');
     const [message, setMessage] = useState('');
@@ -150,7 +152,7 @@ export function useWebsitePreviewChat() {
     async function handleAgentMessage(userMessage: string) {
         const reader = await streamAgentResponse(userMessage, {
             resource: resourceId,
-            thread: threadId,
+            thread: agentThreadId,
         });
 
         const finalMessage = await consumeAgentStream(reader, {
